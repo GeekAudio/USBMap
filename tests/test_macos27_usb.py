@@ -37,6 +37,20 @@ def editor(ports):
 
 
 class USBPropertiesTests(unittest.TestCase):
+    def test_compatibility_platform_uses_model_property(self):
+        for value in ('<"Mac15,14">', '"Mac15,14"', '<4d616331352c313400>'):
+            with self.subTest(value=value):
+                m = Mapper.__new__(Mapper)
+                m.ioreg = ['+-o ACPI  <class IOPlatformExpertDevice, id 0x100, registered>',
+                           '  {', '    "model" = '+value, '  }']
+                self.assertEqual(m.get_platform_model(0,"ACPI"),"Mac15,14")
+
+    def test_model_fallback_does_not_read_child_properties(self):
+        m = Mapper.__new__(Mapper)
+        m.ioreg = ['+-o TestModel  <class IOPlatformExpertDevice, id 0x100, registered>',
+                   '  {', '  }', '  +-o Child', '    "model" = <"WrongModel">']
+        self.assertEqual(m.get_platform_model(0,"TestModel"),"TestModel")
+
     def test_modern_only_import_and_save(self):
         for binary in (False, True):
             with self.subTest(binary=binary), tempfile.TemporaryDirectory() as temp:

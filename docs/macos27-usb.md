@@ -3,6 +3,11 @@
 This branch fixes map import, discovery, and editing. It does not make more
 than 15 root ports work without an independently verified kernel patch.
 
+On compatibility platforms the IORegistry root may be named `ACPI` even
+when its `model` property is `Mac15,14`. Use the actual `model` property to
+generate the injector's model match; matching the root's display name can
+prevent an otherwise valid map from attaching.
+
 ## Map format
 
 Keep both `port` and `usb-port-number` as four-byte little-endian Data. Keep

@@ -478,6 +478,27 @@ class USBMap:
             return "IOService:/"+"/".join(path[::-1])
         return None
 
+    def get_platform_model(self,index,fallback):
+        # Compatibility platforms may name the root "ACPI" instead of the
+        # SMBIOS model. Match the actual model property used by injectors.
+        for line in self.ioreg[index+1:]:
+            if "+-o" in line or line.replace("|","").strip() == "}":
+                break
+            match = re.search(r'"model"\s*=\s*(.+)',line)
+            if not match:
+                continue
+            value = match.group(1).strip()
+            if value.startswith('<"') and value.endswith('\">'):
+                return value[2:-2].rstrip("\x00") or fallback
+            if value.startswith('"') and value.endswith('"'):
+                return value[1:-1].rstrip("\x00") or fallback
+            if value.startswith("<") and value.endswith(">"):
+                try:
+                    return binascii.unhexlify(value[1:-1]).decode("utf-8").rstrip("\x00") or fallback
+                except (ValueError, UnicodeError, binascii.Error):
+                    pass
+        return fallback
+
     def populate_controllers(self):
         assert self.ioreg != None # Error if we have no ioreg to iterate
         self.smbios = None
@@ -497,7 +518,7 @@ class USBMap:
         for line,i in valid:
             if "<class IOPlatformExpertDevice," in line:
                 # Retain the SMBIOS
-                self.smbios = line.split("<class")[0].strip()
+                self.smbios = self.get_platform_model(i,line.split("<class")[0].strip())
                 continue
             elif "<class IOPCIDevice," in line:
                 # Retain the last PCI device found
