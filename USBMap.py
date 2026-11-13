@@ -1,5 +1,5 @@
 import os, sys, re, json, binascii, shutil
-from Scripts import run, utils, ioreg, plist, reveal
+from Scripts import run, utils, ioreg, plist, reveal, usb
 from collections import OrderedDict
 from datetime import datetime
 
@@ -587,9 +587,17 @@ class USBMap:
                     if line.replace("|","").strip() == "}":
                         break # We hit the end of that port
                     elif '"port" = ' in line or '"usb-port-number" = ' in line:
-                        obj["port"] = line.split("<")[1].split(">")[0]
+                        try:
+                            value = line.split(" = ",1)[1].strip()
+                            value = binascii.unhexlify(value[1:-1]) if value.startswith("<") else int(value,0)
+                            obj["port"] = binascii.hexlify(plist.extract_data(usb.port_data(value))).decode("utf-8")
+                        except (TypeError, ValueError, binascii.Error):
+                            continue
                     elif '"UsbConnector" = ' in line or '"usb-port-type" = ' in line:
-                        try: obj["connector"] = int(line.split(" = ")[1].strip())
+                        try:
+                            value = line.split(" = ",1)[1].strip()
+                            value = binascii.unhexlify(value[1:-1]) if value.startswith("<") else int(value,0)
+                            obj["connector"] = usb.connector_type(value)
                         except: obj["connector"] = -1 # Unknown
                     elif '"comment" = "' in line.lower():
                         try: obj["ioreg_comment"] = line.split('"')[-2]
@@ -597,6 +605,8 @@ class USBMap:
                     if all((obj.get(x) for x in ("port","connector","ioreg_comment"))):
                         break # Got what we needed, no need to keep searching
                 # Save what we found
+                if "port" not in obj:
+                    continue # No usable port number; do not abort discovery.
                 controllers[cont_list[-1]]["ports"][obj["port"]] = obj
                 last_port = obj # Retain this so we can note if it contains a hub
         # Let's get the IOService path for each controller

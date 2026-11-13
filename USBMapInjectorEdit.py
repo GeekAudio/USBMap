@@ -1,5 +1,5 @@
 import os, sys, re, json, binascii, shutil, subprocess
-from Scripts import run, utils, ioreg, plist, reveal
+from Scripts import run, utils, ioreg, plist, reveal, usb
 from collections import OrderedDict
 from datetime import datetime
 
@@ -111,24 +111,10 @@ class USBMap:
         # and newer keys saved for each setting
         if not self.plist_data or not isinstance(self.plist_data,dict) or not isinstance(self.plist_data.get("IOKitPersonalities"),dict):
             return
-        old,new = ("port","UsbConnector"),("usb-port-number","usb-port-type")
         for iok in self.plist_data["IOKitPersonalities"].values():
-            try:
-                port_list = iok["IOProviderMergeProperties"]["ports"]
-            except:
-                port_list = []
+            port_list = iok.get("IOProviderMergeProperties",{}).get("ports",{})
             for p in port_list.values():
-                for i in range(len(old)):
-                    # Update them if they exist, otherwise
-                    # remove them if they don't
-                    if old[i] in p:
-                        p[new[i]] = p[old[i]]
-                    else:
-                        p.pop(new[i],None)
-                    if "#"+old[i] in p:
-                        p["#"+new[i]] = p["#"+old[i]]
-                    else:
-                        p.pop("#"+new[i],None)
+                usb.normalize_port(p)
 
     def save_plist(self):
         # Ensure the lists are the same
@@ -180,12 +166,13 @@ class USBMap:
             return menu
 
     def edit_ports(self,personality):
+        self.normalize_keys()
         pers = self.plist_data["IOKitPersonalities"][personality]
         if not pers.get("IOProviderMergeProperties",{}).get("ports",{}):
             return self.show_error("No Ports Defined","There are no ports defined for {}!".format(personality))
         ports = pers["IOProviderMergeProperties"]["ports"]
-        sorted_ports = sorted(ports,key=lambda x:ports[x].get("port",ports[x].get("#port")))
-        port_list = list(ports)
+        sorted_ports = sorted(ports,key=lambda x:usb.property_integer(ports[x].get("port",ports[x].get("#port"))))
+        port_list = sorted_ports
         next_class = "AppleUSBHostMergeProperties"
         while True:
             pad = 4
@@ -358,7 +345,7 @@ class USBMap:
                     print_text.append("    {}Class:  {}{}".format(self.bs,personality["IOClass"],self.ce))
             print_text.append("")
             if not updated:
-                print_text.append("U. Update Keys for macOS 26 (Tahoe)")
+                print_text.append("U. Update Keys for macOS 26 / 27")
             print_text.append("S. Set All SMBIOS Targets")
             print_text.append("C. Set All Classes to AppleUSBHostMergeProperties")
             print_text.append("L. Set All Classes to AppleUSBMergeNub (Legacy)")
@@ -535,6 +522,10 @@ class USBMap:
             return self.show_error("Missing Personalities","No IOKitPersonalities found in {}!".format(os.path.basename(path)))
         self.plist_path = path
         self.plist_data = plist_data
+        try:
+            self.normalize_keys()
+        except (TypeError, ValueError) as e:
+            return self.show_error("Invalid USB Properties",e)
         self.pick_personality()
 
 if __name__ == '__main__':

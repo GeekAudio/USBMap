@@ -1,3 +1,11 @@
+## macOS 27 compatibility branch
+
+This fork preserves modern-only `usb-port-number` / `usb-port-type` maps when importing them into USBMapInjectorEdit. Saving synchronizes the legacy aliases and disabled port state, writes four-byte little-endian port Data and Integer connector types, and keeps menu selections aligned with numeric port order. Discovery accepts Integer or Data USB properties.
+
+These are map editing fixes, not a bypass for the 15-port controller limit. The generated kext retains both old and modern property names. See [macOS 27 and ACPI isolation](docs/macos27-usb.md) before using a map or SSDT alongside macOS 26.
+
+Validation: `python3 -m unittest discover -s tests -v`.
+
 # USBMap
 macOS has a limit on the number of USB ports it can recognize, which might cause some ports to function at lower speeds or not at all. USBMap is a python script which helps to create a custom kext to ensure all ports work correctly by mapping them within macOS's limits.
 
